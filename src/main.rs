@@ -31,37 +31,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Connect to the socket using UnixStream
     let stream = UnixStream::connect(socket_path).await?;
 
-    loop {
-        println!("Starting loop");
-        let ready = stream
-            .ready(Interest::READABLE | Interest::WRITABLE)
-            .await?;
-        println!("{:?}", ready);
+    handle_loop(stream).await?;
 
-        if ready.is_readable() {
-            let mut data = vec![0; 400];
-            println!("Reading data");
-            // Try to read data, this may still fail with `WouldBlock`
-            // if the readiness event is a false positive.
-            match stream.try_read(&mut data) {
-                Ok(_) => {
-                    println!("Read data: {:?}", data);
-                    if let Ok(line) = String::from_utf8(data) {
-                        let _ = handle(&line).await;
-                    }
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    continue;
-                }
-                Err(e) => {
-                    return Err(e.into());
-                }
-            }
-        }
-    }
+    Ok(())
 }
 
-async fn handle(line: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_loop(stream: UnixStream) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading config...");
     let mut config_file = File::open("config.yaml")?;
     let mut config_str = String::new();
@@ -69,6 +44,42 @@ async fn handle(line: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     let config: Config = serde_yaml::from_str(&config_str).expect("error getting config");
 
+    let mut buffer = vec![0; 60]; // Adjust buffer size as needed
+    let mut line_buffer = String::new();
+
+    loop {
+        match stream.try_read(&mut buffer) {
+            Ok(n) => {
+                if n == 0 {
+                    // Handle connection closed
+                    break;
+                }
+
+                let data_str = from_utf8(&buffer[..n])?;
+                line_buffer.push_str(data_str);
+
+                println!("Data: {}", data_str);
+                println!("Buffer: {}", line_buffer);
+
+                if line_buffer.ends_with('\n') {
+                    let event = line_buffer.drain(..).collect::<String>();
+                    let _ = handle_event(&event, &config).await;
+                }
+            }
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                // Continue reading in next iteration
+                continue;
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     match line {
         line if line.starts_with("monitoradded") => println!("Monitor added event: {}", line),
         line if line.starts_with("focusedmon") => println!("Focused monitor event: {}", line),
@@ -98,7 +109,7 @@ async fn handle(line: &str) -> Result<(), Box<dyn std::error::Error>> {
                 println!("Error executing command: {}", error);
             }
         }
-        _ => println!("Unknown event: {}", line),
+        _ => println!("Unhandled event: {}", line),
     }
 
     return Ok(());
