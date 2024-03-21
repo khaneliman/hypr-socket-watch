@@ -1,4 +1,4 @@
-use directories::{BaseDirs, ProjectDirs, UserDirs};
+use directories::ProjectDirs;
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -21,6 +21,9 @@ pub struct Config {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    std::env::set_var("RUST_LOG", "debug");
+    std::env::set_var("RUST_BACKTRACE", "1");
+
     // Get the socket path from the environment variable
     let hyprland_instance_signature = env::var("HYPRLAND_INSTANCE_SIGNATURE")?;
 
