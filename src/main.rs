@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await?;
 
         if ready.is_readable() {
-            let mut data = vec![0; 65];
+            let mut data = vec![0; 400];
             // Try to read data, this may still fail with `WouldBlock`
             // if the readiness event is a false positive.
             match stream.try_read(&mut data) {
@@ -192,17 +192,13 @@ fn get_nth_file(directory: &str, n: u32) -> Option<String> {
         .collect::<Vec<_>>();
     files.sort();
 
-    // Check if there are enough files
-    if files.len() < n as usize {
-        println!(
-            "Error: Not enough files in '{}' to find the {}th file.",
-            directory, n
-        );
-        return None;
-    }
-
+    let index = if n as usize > files.len() {
+        0 // Default to the first file
+    } else {
+        n as usize - 1
+    };
     // Get the nth file name
-    let file_name = &files[n as usize - 1];
+    let file_name = &files[index];
 
     // Get full path
     let full_path = format!("{}{}", directory, file_name.to_str().unwrap());
