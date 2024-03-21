@@ -187,6 +187,7 @@ fn extract_number_after_double_arrow(input_string: &str) -> Option<u32> {
 }
 
 // Parse arguments using std::env
+#[allow(dead_code)]
 fn parse_args() -> Option<(String, u32)> {
     let mut args = std::env::args().skip(1);
     if let Some(directory) = args.next() {
