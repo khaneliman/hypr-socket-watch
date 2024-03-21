@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ready = stream
             .ready(Interest::READABLE | Interest::WRITABLE)
             .await?;
-        println!("Ready: {:?}", ready);
+        println!("{:?}", ready);
 
         if ready.is_readable() {
             let mut data = vec![0; 400];
@@ -45,7 +45,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // if the readiness event is a false positive.
             match stream.try_read(&mut data) {
                 Ok(_) => {
-                    println!("Received data: {:?}", data);
+                    println!("Read data: {:?}", data);
                     if let Ok(line) = String::from_utf8(data) {
                         let _ = handle(&line).await;
                     }

@@ -2,10 +2,14 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
+    hyprland = {
+      url = "github:hyprwm/Hyprland";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
-  outputs = { self, nixpkgs, rust-overlay, ... }:
+  outputs = { self, hyprland, nixpkgs, rust-overlay, ... }:
     let
-      overlays = [ (import rust-overlay) ];
+      overlays = [ (import rust-overlay) hyprland.overlays.default ];
 
       forAllSystems = function:
         nixpkgs.lib.genAttrs [
