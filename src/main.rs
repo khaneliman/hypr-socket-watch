@@ -1,4 +1,6 @@
 use std::env;
+use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 use std::str::from_utf8;
 use std::{fs, process::Command};
@@ -7,6 +9,14 @@ use tokio::{
     io::{self, Interest},
     net::UnixStream,
 };
+
+use serde::Deserialize;
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Config {
+    pub monitor: String,
+    pub wallpapers: String,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -48,16 +58,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn handle(line: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut config_file = File::open("config.yaml")?;
+    let mut config_str = String::new();
+    config_file.read_to_string(&mut config_str)?;
+
+    let config: Config = serde_yaml::from_str(&config_str).expect("error getting config");
+
     match line {
         line if line.starts_with("monitoradded") => println!("Monitor added event: {}", line),
         line if line.starts_with("focusedmon") => println!("Focused monitor event: {}", line),
         line if line.starts_with("workspace") && !line.starts_with("workspacev2") => {
             println!("Workspace event: {}", line);
-            // NOTE: throws socket error communicating with hyprpaper
             let n = extract_number_after_double_arrow(line.trim());
-            // TODO: replace with logic to get wallpaper path
-            let wallpaper = get_nth_file("/nix/store/xl4p5kciyn2kahc3kpafvgjwqlj0q8yy-khanelinix.wallpapers/share/wallpapers/", n.expect("Expected number"));
-            let command_str = format!("DP-1,{}", wallpaper.expect("Expected wallpaper path"));
+            let wallpaper = get_nth_file(&config.wallpapers, n.expect("Expected number"));
+
+            let command_str = format!(
+                "{},{}",
+                config.monitor,
+                wallpaper.expect("Expected wallpaper path")
+            );
 
             println!("Command: {}", &command_str);
 
@@ -73,40 +92,6 @@ async fn handle(line: &str) -> Result<(), Box<dyn std::error::Error>> {
                 let error = String::from_utf8(output.stderr).expect("Invalid UTF-8 sequence");
                 println!("Error executing command: {}", error);
             }
-
-            // let hyprland_instance_signature = env::var("HYPRLAND_INSTANCE_SIGNATURE")?;
-            //
-            // // Build the socket path with appropriate format
-            // let socket_path = Path::new("/tmp/hypr/")
-            //     .join(format!("{}/.hyprpaper.sock", hyprland_instance_signature));
-            // println!("Socket path: {:?}", socket_path);
-            //
-            // // Connect to the socket using UnixStream
-            // let stream = UnixStream::connect(socket_path).await?;
-            //
-            // loop {
-            //     let ready = stream.ready(Interest::WRITABLE).await?;
-            //     println!("{:?}", ready);
-            //
-            //     if ready.is_writable() {
-            //         // Try to write data, this may still fail with `WouldBlock`
-            //         // if the readiness event is a false positive.
-            //         let n = extract_number_after_double_arrow(line.trim());
-            //         // TODO: replace with logic to get wallpaper path
-            //         let wallpaper = get_nth_file("/nix/store/xl4p5kciyn2kahc3kpafvgjwqlj0q8yy-khanelinix.wallpapers/share/wallpapers/", n.expect("Expected number"));
-            //         let command_str = format!("wallpaper DP-1,{:?}", wallpaper);
-            //
-            //         match stream.try_write(command_str.as_bytes()) {
-            //             Ok(n) => {
-            //                 println!("write {} bytes", n);
-            //             }
-            //             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {}
-            //             Err(e) => {
-            //                 return Err(e.into());
-            //             }
-            //         }
-            //     }
-            // }
         }
         _ => println!("Unknown event: {}", line),
     }
@@ -114,16 +99,25 @@ async fn handle(line: &str) -> Result<(), Box<dyn std::error::Error>> {
     return Ok(());
 }
 
-fn extract_after_double_arrow(input_string: &str) -> Option<&str> {
+fn extract_after_double_arrow(input_string: &str) -> Option<String> {
     println!("String Extract Input string: {}**", input_string);
-    // Split the string by "->" (maximum of one split)
-    let parts = input_string.trim().splitn(2, ">>").collect::<Vec<&str>>();
-    println!("Parts: {:?}", parts);
+    // Split the input string by "\n"
+    let parts: Vec<&str> = input_string.split("\n").collect();
 
-    // Check if there's a part after the double arrow
-    if parts.len() > 1 {
-        println!("Parts length: {}", parts.len());
-        return Some(parts[1]);
+    // Extract the first part before the "\n" character
+    if let Some(first_part) = parts.first() {
+        // Trim any extra spaces
+        let cleaned_string = first_part.trim();
+
+        // Split the cleaned string by ">>" (maximum of one split)
+        let parts: Vec<&str> = cleaned_string.splitn(2, ">>").collect();
+        println!("Parts: {:?}", parts);
+
+        // Check if there's a part after the double arrow
+        if parts.len() > 1 {
+            println!("Parts length: {}", parts.len());
+            return Some(parts[1].to_string());
+        }
     }
 
     // No part after double arrow, return None
