@@ -17,30 +17,11 @@ use serde::Deserialize;
 pub struct Config {
     pub monitor: String,
     pub wallpapers: String,
+    pub debug: Option<bool>,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    std::env::set_var("RUST_LOG", "debug");
-    std::env::set_var("RUST_BACKTRACE", "1");
-
-    // Get the socket path from the environment variable
-    let hyprland_instance_signature = env::var("HYPRLAND_INSTANCE_SIGNATURE")?;
-
-    // Build the socket path with appropriate format
-    let socket_path =
-        Path::new("/tmp/hypr/").join(format!("{}/.socket2.sock", hyprland_instance_signature));
-    println!("Socket path: {:?}", socket_path);
-
-    // Connect to the socket using UnixStream
-    let stream = UnixStream::connect(socket_path).await?;
-
-    handle_loop(stream).await?;
-
-    Ok(())
-}
-
-async fn handle_loop(stream: UnixStream) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading config...");
     let proj_dirs = ProjectDirs::from("com", "khaneliman", "hypr-socket-watch");
     let config_path = proj_dirs
@@ -54,6 +35,31 @@ async fn handle_loop(stream: UnixStream) -> Result<(), Box<dyn std::error::Error
 
     let config: Config = serde_yaml::from_str(&config_str).expect("error getting config");
 
+    if config.debug.is_some() && config.debug.unwrap() {
+        std::env::set_var("RUST_LOG", "debug");
+        std::env::set_var("RUST_BACKTRACE", "1");
+    }
+
+    // Get the socket path from the environment variable
+    let hyprland_instance_signature = env::var("HYPRLAND_INSTANCE_SIGNATURE")?;
+
+    // Build the socket path with appropriate format
+    let socket_path =
+        Path::new("/tmp/hypr/").join(format!("{}/.socket2.sock", hyprland_instance_signature));
+    println!("Socket path: {:?}", socket_path);
+
+    // Connect to the socket using UnixStream
+    let stream = UnixStream::connect(socket_path).await?;
+
+    handle_loop(stream, &config).await?;
+
+    Ok(())
+}
+
+async fn handle_loop(
+    stream: UnixStream,
+    config: &Config,
+) -> Result<(), Box<dyn std::error::Error>> {
     const LINE_ENDING: &str = "\n";
     let mut buffer = vec![0; 128]; // Adjust buffer size as needed
     let mut line_buffer = String::new();

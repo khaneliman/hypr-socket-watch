@@ -1,2 +1,3 @@
 monitor: "DP-1"
 wallpapers: "/nix/store/xl4p5kciyn2kahc3kpafvgjwqlj0q8yy-khanelinix.wallpapers/share/wallpapers/"
+debug: false
