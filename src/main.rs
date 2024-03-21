@@ -108,7 +108,7 @@ async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::er
                 wallpaper.expect("Expected wallpaper path")
             );
 
-            println!("Command: {}", &command_str);
+            println!("Command: hyprctl hyprpaper wallpaper {}", &command_str);
 
             let output = Command::new("hyprctl")
                 .args(["hyprpaper", "wallpaper", &command_str])

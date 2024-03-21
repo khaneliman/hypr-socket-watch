@@ -3,6 +3,7 @@
 , clippy
 , openssl
 , hyprland
+, hyprpaper
 , version
 , ...
 }:
@@ -23,6 +24,7 @@ rustPlatform.buildRustPackage rec {
 
   runtimeInputs = [
     hyprland
+    hyprpaper
   ];
 
   cargoLock = {
