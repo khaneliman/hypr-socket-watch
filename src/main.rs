@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -44,8 +45,10 @@ async fn handle_loop(stream: UnixStream) -> Result<(), Box<dyn std::error::Error
 
     let config: Config = serde_yaml::from_str(&config_str).expect("error getting config");
 
+    const DELIMITER: &str = "\n#";
     let mut buffer = vec![0; 60]; // Adjust buffer size as needed
     let mut line_buffer = String::new();
+    let mut event_data = HashMap::new();
 
     loop {
         match stream.try_read(&mut buffer) {
@@ -63,6 +66,27 @@ async fn handle_loop(stream: UnixStream) -> Result<(), Box<dyn std::error::Error
 
                 if line_buffer.ends_with('\n') {
                     let event = line_buffer.drain(..).collect::<String>();
+                    let parts: Vec<&str> = event.splitn(2, ">>").collect();
+
+                    if parts.len() < 2 {
+                        println!("Invalid event format: {}", event);
+                        continue;
+                    }
+
+                    let event_type = parts[0].trim();
+                    let data = parts[1].trim();
+
+                    // Check for duplicate events
+                    if let Some(previous_data) = event_data.get(event_type) {
+                        if previous_data == data {
+                            println!("Duplicate event: {} ({})", event_type, data);
+                            continue;
+                        }
+                    }
+
+                    // Update event data with latest
+                    event_data.insert(event_type.to_string(), data.to_string());
+
                     let _ = handle_event(&event, &config).await;
                 }
             }
