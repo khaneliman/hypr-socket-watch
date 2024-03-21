@@ -32,16 +32,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let stream = UnixStream::connect(socket_path).await?;
 
     loop {
+        println!("Starting loop");
         let ready = stream
             .ready(Interest::READABLE | Interest::WRITABLE)
             .await?;
+        println!("Ready: {:?}", ready);
 
         if ready.is_readable() {
             let mut data = vec![0; 400];
+            println!("Reading data");
             // Try to read data, this may still fail with `WouldBlock`
             // if the readiness event is a false positive.
             match stream.try_read(&mut data) {
                 Ok(_) => {
+                    println!("Received data: {:?}", data);
                     if let Ok(line) = String::from_utf8(data) {
                         let _ = handle(&line).await;
                     }
@@ -58,6 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn handle(line: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Loading config...");
     let mut config_file = File::open("config.yaml")?;
     let mut config_str = String::new();
     config_file.read_to_string(&mut config_str)?;

@@ -1,33 +1,33 @@
 { lib
 , rustPlatform
-, fetchFromGitHub
 , clippy
 , openssl
 , hyprland
+, version
 , ...
 }:
 
 rustPlatform.buildRustPackage rec {
   pname = "hypr-socket-watch";
-  version = "unstable-2024-03-21";
+  inherit version;
 
   buildInputs = [
     clippy
     openssl
   ];
 
-  src = fetchFromGitHub {
-    owner = "khaneliman";
-    repo = pname;
-    rev = "8862c5b83d9b2053bed0d5d8d8aa0ddc23368010";
-    hash = "sha256-FRu6JzntuPCRd08Ui9Zoor4yBAklHNOuoohbDkLx8XE=";
+  src = lib.cleanSourceWith {
+    filter = name: type: type != "regular" || !lib.hasSuffix ".nix" name;
+    src = lib.cleanSource ../.;
   };
 
   runtimeInputs = [
     hyprland
   ];
 
-  cargoHash = "sha256-CscoC5FlKlzbt4VOWSsqF/E4kO2gzUJuBVNbIg4kBgQ=";
+  cargoLock = {
+    lockFile = ../Cargo.lock;
+  };
 
   meta = {
     mainProgram = "hypr-socket-watch";

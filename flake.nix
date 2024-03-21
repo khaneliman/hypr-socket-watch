@@ -14,6 +14,8 @@
         ]
           (system: function (import nixpkgs { inherit system overlays; }));
 
+      version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
+
       mkDate = longDate: (nixpkgs.lib.concatStringsSep "-" [
         (builtins.substring 0 4 longDate)
         (builtins.substring 4 2 longDate)
@@ -45,7 +47,10 @@
           });
 
       overlays.default = final: prev: {
-        hypr-socket-watch = final.callPackage ./nix/default.nix { };
+        hypr-socket-watch = final.callPackage ./nix/default.nix {
+          version =
+            version + "+date=" + (mkDate (self.lastModifiedDate or "19700101")) + "_" + (self.shortRev or "dirty");
+        };
       };
 
       packages = forAllSystems
