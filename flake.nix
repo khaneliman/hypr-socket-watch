@@ -1,40 +1,58 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
   };
+  outputs = { self, nixpkgs, rust-overlay, ... }:
+    let
+      overlays = [ (import rust-overlay) ];
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        overlays = [ (import rust-overlay) ];
-        pkgs = import nixpkgs {
-          inherit system overlays;
-        };
-      in
-      with pkgs;
-      {
-        devShells.default = mkShell {
-          name = "month-of-ai-shell";
+      forAllSystems = function:
+        nixpkgs.lib.genAttrs [
+          "x86_64-linux"
+          "aarch64-linux"
+        ]
+          (system: function (import nixpkgs { inherit system overlays; }));
 
-          buildInputs = with pkgs; [
-            cargo
-            rust-bin.stable.latest.default
-            rustfmt
-            clippy
-            openssl
-          ]
-          ++ lib.optionals stdenv.isDarwin
-            (with pkgs.darwin.apple_sdk.frameworks;
-            [
-              SystemConfiguration
-            ]);
+      mkDate = longDate: (nixpkgs.lib.concatStringsSep "-" [
+        (builtins.substring 0 4 longDate)
+        (builtins.substring 4 2 longDate)
+        (builtins.substring 6 2 longDate)
+      ]);
+    in
+    {
+      devShells = forAllSystems
+        (pkgs:
+          {
+            default =
+              pkgs.mkShell
+                {
+                  name = "hypr-socket-watch-shell";
 
-          nativeBuildInputs = with pkgs;
-            [
-              pkg-config
-            ];
-        };
-      });
+                  buildInputs = with pkgs; [
+                    cargo
+                    rust-bin.stable.latest.default
+                    rustfmt
+                    clippy
+                    openssl
+                  ];
+
+                  nativeBuildInputs = with pkgs;
+                    [
+                      pkg-config
+                    ];
+                };
+          });
+
+      overlays.default = final: prev: {
+        hypr-socket-watch = final.callPackage ./nix/default.nix { };
+      };
+
+      packages = forAllSystems
+        (pkgs:
+          let packages = self.overlays.default pkgs pkgs;
+          in packages // {
+            default = packages.hypr-socket-watch;
+          });
+    };
 }
