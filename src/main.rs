@@ -45,7 +45,7 @@ async fn handle_loop(mut stream: UnixStream) -> Result<(), Box<dyn std::error::E
 
     let config: Config = serde_yaml::from_str(&config_str).expect("error getting config");
 
-    const DELIMITER: &str = "\n#";
+    const LINE_ENDING: &str = "\n";
     let mut buffer = vec![0; 128]; // Adjust buffer size as needed
     let mut line_buffer = String::new();
 
@@ -54,25 +54,25 @@ async fn handle_loop(mut stream: UnixStream) -> Result<(), Box<dyn std::error::E
             Ok(n) => {
                 if n == 0 {
                     // Handle connection closed
-                    println!("Connection closed");
+                    println!("\n[!!]:Connection closed");
                     break;
                 }
 
                 let data_str = from_utf8(&buffer[..n])?;
-                println!("Data: {}", data_str);
                 line_buffer.push_str(data_str);
-                // println!("Buffer: {}", line_buffer);
 
-                // Check for delimiter after appending
-                if line_buffer.contains(DELIMITER) {
-                    println!("Delimiter found");
-                    // Split the buffer based on delimiter
-                    let mut parts = line_buffer.splitn(2, DELIMITER);
-                    let event = parts.next().unwrap().to_string();
-                    line_buffer = parts.next().unwrap_or("").to_string(); // Clear buffer except any remaining data
-
-                    let _ = handle_event(&event, &config).await;
+                // Check for line endings within the buffer
+                let mut lines = line_buffer.split(LINE_ENDING);
+                while let Some(line) = lines.next() {
+                    if !line.is_empty() {
+                        // Ignore empty lines (optional)
+                        println!("\nProcessing event: {}", line);
+                        let _ = handle_event(line, &config).await;
+                    }
                 }
+
+                // Remove processed lines from the buffer
+                line_buffer = lines.next().unwrap_or("").to_string(); // Keep any remaining data
             }
             Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
                 // Continue reading in next iteration
@@ -89,10 +89,10 @@ async fn handle_loop(mut stream: UnixStream) -> Result<(), Box<dyn std::error::E
 
 async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     match line {
-        line if line.starts_with("monitoradded") => println!("Monitor added event: {}", line),
-        line if line.starts_with("focusedmon") => println!("Focused monitor event: {}", line),
+        line if line.starts_with("monitoradded") => println!("\nMonitor added event: {}", line),
+        line if line.starts_with("focusedmon") => println!("\nFocused monitor event: {}", line),
         line if line.starts_with("workspace") && !line.starts_with("workspacev2") => {
-            println!("Workspace event: {}", line);
+            println!("\nWorkspace event: {}", line);
             let n = extract_number_after_double_arrow(line.trim());
             let wallpaper = get_nth_file(&config.wallpapers, n.expect("Expected number"));
 
@@ -117,7 +117,7 @@ async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::er
                 println!("Error executing command: {}", error);
             }
         }
-        _ => println!("Unhandled event: {}", line),
+        _ => println!("\nUnhandled event: {}", line),
     }
 
     return Ok(());
