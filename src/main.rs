@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn handle_loop(stream: UnixStream) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_loop(mut stream: UnixStream) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading config...");
     let mut config_file = File::open("config.yaml")?;
     let mut config_str = String::new();
@@ -46,46 +46,30 @@ async fn handle_loop(stream: UnixStream) -> Result<(), Box<dyn std::error::Error
     let config: Config = serde_yaml::from_str(&config_str).expect("error getting config");
 
     const DELIMITER: &str = "\n#";
-    let mut buffer = vec![0; 60]; // Adjust buffer size as needed
+    let mut buffer = vec![0; 128]; // Adjust buffer size as needed
     let mut line_buffer = String::new();
-    let mut event_data = HashMap::new();
 
     loop {
         match stream.try_read(&mut buffer) {
             Ok(n) => {
                 if n == 0 {
                     // Handle connection closed
+                    println!("Connection closed");
                     break;
                 }
 
                 let data_str = from_utf8(&buffer[..n])?;
-                line_buffer.push_str(data_str);
-
                 println!("Data: {}", data_str);
-                println!("Buffer: {}", line_buffer);
+                line_buffer.push_str(data_str);
+                // println!("Buffer: {}", line_buffer);
 
-                if line_buffer.ends_with('\n') {
-                    let event = line_buffer.drain(..).collect::<String>();
-                    let parts: Vec<&str> = event.splitn(2, ">>").collect();
-
-                    if parts.len() < 2 {
-                        println!("Invalid event format: {}", event);
-                        continue;
-                    }
-
-                    let event_type = parts[0].trim();
-                    let data = parts[1].trim();
-
-                    // Check for duplicate events
-                    if let Some(previous_data) = event_data.get(event_type) {
-                        if previous_data == data {
-                            println!("Duplicate event: {} ({})", event_type, data);
-                            continue;
-                        }
-                    }
-
-                    // Update event data with latest
-                    event_data.insert(event_type.to_string(), data.to_string());
+                // Check for delimiter after appending
+                if line_buffer.contains(DELIMITER) {
+                    println!("Delimiter found");
+                    // Split the buffer based on delimiter
+                    let mut parts = line_buffer.splitn(2, DELIMITER);
+                    let event = parts.next().unwrap().to_string();
+                    line_buffer = parts.next().unwrap_or("").to_string(); // Clear buffer except any remaining data
 
                     let _ = handle_event(&event, &config).await;
                 }
