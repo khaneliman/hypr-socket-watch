@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use directories::{BaseDirs, ProjectDirs, UserDirs};
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -7,7 +7,7 @@ use std::str::from_utf8;
 use std::{fs, process::Command};
 
 use tokio::{
-    io::{self, Interest},
+    io::{self},
     net::UnixStream,
 };
 
@@ -37,9 +37,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn handle_loop(mut stream: UnixStream) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_loop(stream: UnixStream) -> Result<(), Box<dyn std::error::Error>> {
     println!("Loading config...");
-    let mut config_file = File::open("config.yaml")?;
+    let proj_dirs = ProjectDirs::from("com", "khaneliman", "hypr-socket-watch");
+    let config_path = proj_dirs
+        .expect("No config found")
+        .config_dir()
+        .join("config.yaml");
+
+    let mut config_file = File::open(&config_path)?;
     let mut config_str = String::new();
     config_file.read_to_string(&mut config_str)?;
 
