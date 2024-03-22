@@ -2,7 +2,7 @@ use directories::ProjectDirs;
 use std::env;
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use std::{fs, process::Command};
 
@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if config.debug.is_some() && config.debug.unwrap() {
         std::env::set_var("RUST_LOG", "debug");
-        std::env::set_var("RUST_BACKTRACE", "1");
+        std::env::set_var("RUST_BACKTRACE", "full");
     }
 
     // Get the socket path from the environment variable
@@ -111,25 +111,46 @@ async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::er
             let n = extract_number_after_double_arrow(line.trim());
             let wallpaper = get_nth_file(&config.wallpapers, n.expect("Expected number"));
 
-            let command_str = format!(
-                "{},{}",
-                config.monitor,
-                wallpaper.expect("Expected wallpaper path")
-            );
+            match wallpaper {
+                Ok(wallpaper) => {
+                    let command_str = format!("{},{}", config.monitor, wallpaper.display());
 
-            println!("Command: hyprctl hyprpaper wallpaper {}", &command_str);
+                    println!("Command: hyprctl hyprpaper wallpaper {}", &command_str);
 
-            let output = Command::new("hyprctl")
-                .args(["hyprpaper", "wallpaper", &command_str])
-                .output()
-                .expect("Failed to execute command");
+                    let output = Command::new("hyprctl")
+                        .args(["hyprpaper", "wallpaper", &command_str])
+                        .output();
 
-            if output.status.success() {
-                let result = String::from_utf8(output.stdout).expect("Invalid UTF-8 sequence");
-                println!("Command output: {}", result);
-            } else {
-                let error = String::from_utf8(output.stderr).expect("Invalid UTF-8 sequence");
-                println!("Error executing command: {}", error);
+                    match output {
+                        Ok(output) => {
+                            println!("Command output: {:?}", output);
+
+                            match output.status.success() {
+                                true => {
+                                    let result = String::from_utf8(output.stdout)
+                                        .expect("Invalid UTF-8 sequence");
+
+                                    if result.contains("wallpaper failed (not preloaded)") {
+                                        println!("Wallpaper setting failed: {}", result);
+                                    } else {
+                                        println!("Command output: {}", result);
+                                    }
+                                }
+                                false => {
+                                    let error = String::from_utf8(output.stderr)
+                                        .expect("Invalid UTF-8 sequence");
+                                    println!("Error executing command: {}", error);
+                                }
+                            }
+                        }
+                        Err(error) => {
+                            println!("Error executing command: {}", error);
+                        }
+                    }
+                }
+                Err(error) => {
+                    println!("Error getting wallpaper: {}", error);
+                }
             }
         }
         _ => println!("\nUnhandled event: {}", line),
@@ -212,38 +233,44 @@ fn parse_args() -> Option<(String, u32)> {
     None
 }
 
-fn get_nth_file(directory: &str, n: u32) -> Option<String> {
+fn get_nth_file(directory: &str, n: u32) -> Result<PathBuf, String> {
     println!("Directory: {}", directory);
-    // Check if directory exists
-    match !Path::is_dir(Path::new(directory)) {
-        true => {
-            println!("Error: Directory '{}' does not exist.", directory);
-            return None;
-        }
-        false => (),
+
+    // Validate path early
+    let path = Path::new(directory);
+    if !path.exists() {
+        return Err(format!(
+            "Error: Directory '{}' does not exist.",
+            path.display()
+        ));
     }
 
-    // Get list of files, sorted
-    let mut files = fs::read_dir(directory)
-        .unwrap()
-        .into_iter()
-        .filter_map(Result::ok)
-        .map(|entry| entry.file_name())
-        .collect::<Vec<_>>();
+    // Read directory contents
+    let mut files: Vec<_> = fs::read_dir(path)
+        .map_err(|err| format!("Error reading directory: {}", err))?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .collect();
+
+    // error if no files
+    if files.is_empty() {
+        return Err(format!("Directory '{}' contains no files.", path.display()));
+    }
+
     files.sort();
 
-    let index = if n as usize > files.len() {
-        0 // Default to the first file
-    } else {
-        n as usize - 1
-    };
-    // Get the nth file name
-    let file_name = &files[index];
+    // Handle potential index out of bounds
+    let index = std::cmp::min(n as usize - 1, files.len() - 1);
 
-    // Get full path
-    let full_path = format!("{}{}", directory, file_name.to_str().unwrap());
+    let file_path = files.get(index).ok_or_else(|| {
+        format!(
+            "Directory '{}' contains fewer than {} files.",
+            path.display(),
+            n
+        )
+    })?;
 
-    println!("File: {}", full_path);
+    println!("File: {}", file_path.display());
 
-    Some(full_path)
+    Ok(file_path.to_path_buf())
 }
