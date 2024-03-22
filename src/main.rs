@@ -1,4 +1,5 @@
 use directories::ProjectDirs;
+use log::{debug, error, info, warn};
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -22,7 +23,11 @@ pub struct Config {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Loading config...");
+    // Initialize the logger
+    env_logger::init();
+    std::env::set_var("RUST_LOG", "warn");
+
+    info!("Loading config...");
     let proj_dirs = ProjectDirs::from("com", "khaneliman", "hypr-socket-watch");
     let config_path = proj_dirs
         .expect("No config found")
@@ -46,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Build the socket path with appropriate format
     let socket_path =
         Path::new("/tmp/hypr/").join(format!("{}/.socket2.sock", hyprland_instance_signature));
-    println!("Socket path: {:?}", socket_path);
+    info!("Socket path: {:?}", socket_path);
 
     // Connect to the socket using UnixStream
     let stream = UnixStream::connect(socket_path).await?;
@@ -69,7 +74,7 @@ async fn handle_loop(
             Ok(n) => {
                 if n == 0 {
                     // Handle connection closed
-                    println!("\n[!!]:Connection closed");
+                    warn!("\n[!!]:Connection closed");
                     break;
                 }
 
@@ -81,7 +86,7 @@ async fn handle_loop(
                 while let Some(line) = lines.next() {
                     if !line.is_empty() {
                         // Ignore empty lines (optional)
-                        println!("\nProcessing event: {}", line);
+                        debug!("\nProcessing event: {}", line);
                         let _ = handle_event(line, &config).await;
                     }
                 }
@@ -104,10 +109,10 @@ async fn handle_loop(
 
 async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     match line {
-        line if line.starts_with("monitoradded") => println!("\nMonitor added event: {}", line),
-        line if line.starts_with("focusedmon") => println!("\nFocused monitor event: {}", line),
+        line if line.starts_with("monitoradded") => debug!("\nMonitor added event: {}", line),
+        line if line.starts_with("focusedmon") => debug!("\nFocused monitor event: {}", line),
         line if line.starts_with("workspace") && !line.starts_with("workspacev2") => {
-            println!("\nWorkspace event: {}", line);
+            debug!("\nWorkspace event: {}", line);
             let n = extract_number_after_double_arrow(line.trim());
             let wallpaper = get_nth_file(&config.wallpapers, n.expect("Expected number"));
 
@@ -115,7 +120,7 @@ async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::er
                 Ok(wallpaper) => {
                     let command_str = format!("{},{}", config.monitor, wallpaper.display());
 
-                    println!("Command: hyprctl hyprpaper wallpaper {}", &command_str);
+                    debug!("Command: hyprctl hyprpaper wallpaper {}", &command_str);
 
                     let output = Command::new("hyprctl")
                         .args(["hyprpaper", "wallpaper", &command_str])
@@ -123,7 +128,7 @@ async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::er
 
                     match output {
                         Ok(output) => {
-                            println!("Command output: {:?}", output);
+                            debug!("Command output: {:?}", output);
 
                             match output.status.success() {
                                 true => {
@@ -131,36 +136,38 @@ async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::er
                                         .expect("Invalid UTF-8 sequence");
 
                                     if result.contains("wallpaper failed (not preloaded)") {
-                                        println!("Wallpaper setting failed: {}", result);
+                                        error!("Wallpaper setting failed: {}", result);
                                     } else {
-                                        println!("Command output: {}", result);
+                                        debug!("Command output: {}", result);
                                     }
                                 }
                                 false => {
                                     let error = String::from_utf8(output.stderr)
                                         .expect("Invalid UTF-8 sequence");
-                                    println!("Error executing command: {}", error);
+                                    error!("Error executing command: {}", error);
                                 }
                             }
                         }
                         Err(error) => {
-                            println!("Error executing command: {}", error);
+                            error!("Error executing command: {}", error);
                         }
                     }
                 }
                 Err(error) => {
-                    println!("Error getting wallpaper: {}", error);
+                    error!("Error getting wallpaper: {}", error);
                 }
             }
         }
-        _ => println!("\nUnhandled event: {}", line),
+        _ => {
+            debug!("\nUnhandled event: {}", line)
+        }
     }
 
     return Ok(());
 }
 
 fn extract_after_double_arrow(input_string: &str) -> Option<String> {
-    println!("String Extract Input string: {}**", input_string);
+    debug!("String Extract Input string: {}**", input_string);
     // Split the input string by "\n"
     let parts: Vec<&str> = input_string.split("\n").collect();
 
@@ -171,11 +178,11 @@ fn extract_after_double_arrow(input_string: &str) -> Option<String> {
 
         // Split the cleaned string by ">>" (maximum of one split)
         let parts: Vec<&str> = cleaned_string.splitn(2, ">>").collect();
-        println!("Parts: {:?}", parts);
+        debug!("Parts: {:?}", parts);
 
         // Check if there's a part after the double arrow
         if parts.len() > 1 {
-            println!("Parts length: {}", parts.len());
+            debug!("Parts length: {}", parts.len());
             return Some(parts[1].to_string());
         }
     }
@@ -186,29 +193,29 @@ fn extract_after_double_arrow(input_string: &str) -> Option<String> {
 
 fn extract_number_after_double_arrow(input_string: &str) -> Option<u32> {
     // Extract the part after the double arrow
-    println!("Number Extract Input string: {}**", input_string);
+    debug!("Number Extract Input string: {}**", input_string);
     // let decoded_string = from_utf8(&input_string.as_bytes()).unwrap_or(input_string);
     let decoded_string = from_utf8(&input_string.as_bytes()).unwrap_or(input_string);
     let trimmed_string = decoded_string.trim_end_matches(char::from(0));
     // let part_after_arrow = extract_after_double_arrow(&trimmed_string)?;
 
-    println!(
+    debug!(
         "Number Extract Input string (decoded): {}**",
         decoded_string
     );
 
     if let Some(part_after_arrow) = extract_after_double_arrow(trimmed_string) {
-        println!("Part after arrow: {}", part_after_arrow);
+        debug!("Part after arrow: {}", part_after_arrow);
 
         // Parse the extracted part as a u32
         match part_after_arrow.trim().parse::<u32>() {
             Ok(number) => {
-                println!("Number: {}", number);
+                debug!("Number: {}", number);
                 return Some(number);
             }
             Err(_) => {
                 // Handle the error if the part is not a valid number
-                println!("Error: Invalid number format: {}", part_after_arrow);
+                error!("Error: Invalid number format: {}", part_after_arrow);
             }
         }
     }
@@ -226,7 +233,7 @@ fn parse_args() -> Option<(String, u32)> {
             if n.is_ok() {
                 return Some((directory, n.unwrap()));
             } else {
-                println!("Error: Invalid number for n: {}", n_str);
+                error!("Error: Invalid number for n: {}", n_str);
             }
         }
     }
@@ -234,7 +241,7 @@ fn parse_args() -> Option<(String, u32)> {
 }
 
 fn get_nth_file(directory: &str, n: u32) -> Result<PathBuf, String> {
-    println!("Directory: {}", directory);
+    debug!("Directory: {}", directory);
 
     // Validate path early
     let path = Path::new(directory);
@@ -270,7 +277,7 @@ fn get_nth_file(directory: &str, n: u32) -> Result<PathBuf, String> {
         )
     })?;
 
-    println!("File: {}", file_path.display());
+    debug!("File: {}", file_path.display());
 
     Ok(file_path.to_path_buf())
 }
