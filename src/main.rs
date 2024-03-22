@@ -66,7 +66,7 @@ async fn handle_loop(
     config: &Config,
 ) -> Result<(), Box<dyn std::error::Error>> {
     const LINE_ENDING: &str = "\n";
-    let mut buffer = vec![0; 128]; // Adjust buffer size as needed
+    let mut buffer = vec![0; 50]; // Adjust buffer size as needed
     let mut line_buffer = String::new();
 
     loop {
