@@ -50,6 +50,11 @@
                 };
           });
 
+      homeManagerModules = {
+        default = self.homeManagerModules.hypr-socket-watch;
+        hypr-socket-watch = import ./nix/hm-module.nix self;
+      };
+
       overlays.default = final: prev: {
         hypr-socket-watch = final.callPackage ./nix/default.nix {
           version =
