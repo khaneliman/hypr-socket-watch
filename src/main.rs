@@ -7,6 +7,7 @@ use crate::{
 };
 use directories::ProjectDirs;
 use log::{debug, error, info, warn};
+use regex::Regex;
 use std::env;
 use std::fs::File;
 use std::io::Read;
@@ -80,10 +81,10 @@ async fn handle_loop(
 
                 // Check for line endings within the buffer
                 let mut lines = line_buffer.split(LINE_ENDING);
+
                 while let Some(line) = lines.next() {
                     if !line.is_empty() {
-                        // Ignore empty lines (optional)
-                        debug!("\nProcessing event: {}", line);
+                        debug!("\nHandling event: {}", line);
                         let _ = handle_event(line, &config).await;
                     }
                 }
@@ -105,10 +106,12 @@ async fn handle_loop(
 }
 
 async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+    let workspace_regex = Regex::new(r"^workspace>>\d+").unwrap();
+
     match line {
         line if line.starts_with("monitoradded") => debug!("\nMonitor added event: {}", line),
         line if line.starts_with("focusedmon") => debug!("\nFocused monitor event: {}", line),
-        line if line.starts_with("workspace") && !line.starts_with("workspacev2") => {
+        line if workspace_regex.is_match(line) => {
             debug!("\nWorkspace event: {}", line);
             let n = extract_number_after_double_arrow(line.trim());
             let wallpaper = get_nth_file(&config.wallpapers, n.expect("Expected number"));
@@ -132,7 +135,12 @@ async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::er
                                     let result = String::from_utf8(output.stdout)
                                         .expect("Invalid UTF-8 sequence");
 
-                                    if result.contains("wallpaper failed (not preloaded)") {
+                                    if result.contains("wallpaper failed (not preloaded)")
+                                        || result.contains(&format!(
+                                            "Couldn't connect to /tmp/hypr/{}/.hyprpaper.sock",
+                                            env::var("HYPRLAND_INSTANCE_SIGNATURE")?
+                                        ))
+                                    {
                                         error!("Wallpaper setting failed: {}", result);
                                     } else {
                                         debug!("Command output: {}", result);
@@ -156,7 +164,7 @@ async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::er
             }
         }
         _ => {
-            debug!("\nUnhandled event: {}", line)
+            debug!("\nIgnored event: {}", line)
         }
     }
 

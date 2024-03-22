@@ -235,6 +235,7 @@ dependencies = [
  "directories",
  "env_logger",
  "log",
+ "regex",
  "serde",
  "serde_yaml",
  "tokio",
