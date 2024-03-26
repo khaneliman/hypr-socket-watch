@@ -6,18 +6,14 @@ use crate::{
     util::{extract_number_after_double_arrow, get_nth_file},
 };
 use directories::ProjectDirs;
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 use regex::Regex;
 use std::env;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::process::Command;
-use std::str::from_utf8;
-use tokio::{
-    io::{self},
-    net::UnixStream,
-};
+use tokio::{io::AsyncBufReadExt, net::UnixStream};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -54,51 +50,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Connect to the socket using UnixStream
     let stream = UnixStream::connect(socket_path).await?;
 
-    handle_loop(stream, &config).await?;
+    let reader = tokio::io::BufReader::new(stream);
+    let mut lines = reader.lines();
 
-    Ok(())
-}
-
-async fn handle_loop(
-    stream: UnixStream,
-    config: &Config,
-) -> Result<(), Box<dyn std::error::Error>> {
-    const LINE_ENDING: &str = "\n";
-    let mut buffer = vec![0; 50]; // Adjust buffer size as needed
-    let mut line_buffer = String::new();
-
-    loop {
-        match stream.try_read(&mut buffer) {
-            Ok(n) => {
-                if n == 0 {
-                    // Handle connection closed
-                    warn!("\n[!!]:Connection closed");
-                    break;
-                }
-
-                let data_str = from_utf8(&buffer[..n])?;
-                line_buffer.push_str(data_str);
-
-                // Check for line endings within the buffer
-                let mut lines = line_buffer.split(LINE_ENDING);
-
-                while let Some(line) = lines.next() {
-                    if !line.is_empty() {
-                        debug!("\nHandling event: {}", line);
-                        let _ = handle_event(line, &config).await;
-                    }
-                }
-
-                // Remove processed lines from the buffer
-                line_buffer = lines.next().unwrap_or("").to_string(); // Keep any remaining data
-            }
-            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                // Continue reading in next iteration
-                continue;
-            }
-            Err(e) => {
-                return Err(e.into());
-            }
+    while let Some(line) = lines.next_line().await? {
+        if !line.is_empty() {
+            debug!("\nHandling event: {}", line);
+            let _ = handle_event(&line, &config).await;
         }
     }
 
