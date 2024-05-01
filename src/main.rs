@@ -40,10 +40,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get the socket path from the environment variable
     let hyprland_instance_signature = env::var("HYPRLAND_INSTANCE_SIGNATURE")?;
+    let xdg_runtime_dir = env::var("XDG_RUNTIME_DIR")?;
 
     // Build the socket path with appropriate format
-    let socket_path =
-        Path::new("/tmp/hypr/").join(format!("{}/.socket2.sock", hyprland_instance_signature));
+    let path = format!(
+        "{}/hypr/{}/.socket2.sock",
+        xdg_runtime_dir, hyprland_instance_signature
+    );
+    let socket_path = Path::new(&path);
     info!("Socket path: {:?}", socket_path);
 
     // Connect to the socket using UnixStream
