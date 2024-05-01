@@ -16,6 +16,12 @@ use tokio::{io::AsyncBufReadExt, net::UnixStream, process::Command};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut binding = env_logger::builder();
+    let logger = binding
+        .filter_level(log::LevelFilter::Info)
+        .format_target(false)
+        .format_timestamp(None);
+
     info!("Loading config...");
     let proj_dirs = ProjectDirs::from("com", "khaneliman", "hypr-socket-watch");
     let config_path = proj_dirs
@@ -31,14 +37,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if config.debug.is_some() && config.debug.unwrap() {
         std::env::set_var("RUST_BACKTRACE", "full");
-
-        // Initialize the logger
-        env_logger::builder()
-            .filter_level(log::LevelFilter::Debug)
-            .format_target(false)
-            .format_timestamp(None)
-            .init();
+        logger.filter_level(log::LevelFilter::Debug);
     }
+
+    // Initialize the logger
+    logger.init();
 
     // Get the socket path from the environment variable
     let hyprland_instance_signature = env::var("HYPRLAND_INSTANCE_SIGNATURE")?;
