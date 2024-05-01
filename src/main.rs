@@ -16,10 +16,6 @@ use tokio::{io::AsyncBufReadExt, net::UnixStream, process::Command};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize the logger
-    env_logger::init();
-    std::env::set_var("RUST_LOG", "warn");
-
     info!("Loading config...");
     let proj_dirs = ProjectDirs::from("com", "khaneliman", "hypr-socket-watch");
     let config_path = proj_dirs
@@ -34,8 +30,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = serde_yaml::from_str(&config_str).expect("error getting config");
 
     if config.debug.is_some() && config.debug.unwrap() {
-        std::env::set_var("RUST_LOG", "debug");
         std::env::set_var("RUST_BACKTRACE", "full");
+
+        // Initialize the logger
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Debug)
+            .format_target(false)
+            .format_timestamp(None)
+            .init();
     }
 
     // Get the socket path from the environment variable
