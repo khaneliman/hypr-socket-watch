@@ -1,9 +1,11 @@
-self: { config
-      , inputs
-      , pkgs
-      , lib
-      , ...
-      }:
+self:
+{
+  config,
+  inputs,
+  pkgs,
+  lib,
+  ...
+}:
 let
   inherit (lib.types) package str;
   inherit (lib.modules) mkIf;
@@ -11,10 +13,7 @@ let
   inherit (lib.meta) getExe;
   inherit (inputs) hyprland;
 
-  boolToString = x:
-    if x
-    then "true"
-    else "false";
+  boolToString = x: if x then "true" else "false";
 
   cfg = config.services.hypr-socket-watch;
 in
@@ -49,8 +48,8 @@ in
 
   config = mkIf cfg.enable {
     xdg.configFile."hypr-socket-watch/config.yaml".text = ''
-      monitor: ${ cfg.monitor}
-      wallpapers: ${ cfg.wallpapers}
+      monitor: ${cfg.monitor}
+      wallpapers: ${cfg.wallpapers}
       debug: ${boolToString cfg.debug}
     '';
 
@@ -62,19 +61,13 @@ in
         BindsTo = [ "graphical-session.target" ];
         PartOf = [ "graphical-session.target" ];
         After = [ "graphical-session.target" ];
-        X-Restart-Triggers = [
-          config.xdg.configFile."hypr-socket-watch/config.yaml".source
-        ];
+        X-Restart-Triggers = [ config.xdg.configFile."hypr-socket-watch/config.yaml".source ];
       };
 
       Service = {
         ExecStart = "${getExe cfg.package}";
         Restart = "on-failure";
-        Environment = [
-          "PATH=${
-            lib.makeBinPath [cfg.hyprlandPackage]
-          }"
-        ];
+        Environment = [ "PATH=${lib.makeBinPath [ cfg.hyprlandPackage ]}" ];
       };
     };
   };

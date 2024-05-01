@@ -1,14 +1,15 @@
-{ lib
-, rustPlatform
-, clippy
-, openssl
-, hyprland
-, hyprpaper
-, version
-, ...
+{
+  lib,
+  rustPlatform,
+  clippy,
+  openssl,
+  hyprland,
+  hyprpaper,
+  version,
+  ...
 }:
 
-rustPlatform.buildRustPackage rec {
+rustPlatform.buildRustPackage {
   pname = "hypr-socket-watch";
   inherit version;
 
@@ -36,4 +37,3 @@ rustPlatform.buildRustPackage rec {
     platforms = lib.platforms.linux;
   };
 }
-
