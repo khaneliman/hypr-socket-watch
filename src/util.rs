@@ -33,10 +33,8 @@ pub fn extract_after_double_arrow(input_string: &str) -> Option<String> {
 pub fn extract_number_after_double_arrow(input_string: &str) -> Option<u32> {
     // Extract the part after the double arrow
     debug!("Number Extract Input string: {}**", input_string);
-    // let decoded_string = from_utf8(&input_string.as_bytes()).unwrap_or(input_string);
     let decoded_string = from_utf8(input_string.as_bytes()).unwrap_or(input_string);
     let trimmed_string = decoded_string.trim_end_matches(char::from(0));
-    // let part_after_arrow = extract_after_double_arrow(&trimmed_string)?;
 
     debug!(
         "Number Extract Input string (decoded): {}**",
