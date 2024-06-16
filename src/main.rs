@@ -136,5 +136,5 @@ async fn handle_event(line: &str, config: &Config) -> Result<(), Box<dyn std::er
         }
     }
 
-    return Ok(());
+    Ok(())
 }
