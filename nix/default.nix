@@ -3,8 +3,6 @@
   rustPlatform,
   clippy,
   openssl,
-  hyprland,
-  hyprpaper,
   version,
   ...
 }:
@@ -22,11 +20,6 @@ rustPlatform.buildRustPackage {
     filter = name: type: type != "regular" || !lib.hasSuffix ".nix" name;
     src = lib.cleanSource ../.;
   };
-
-  runtimeInputs = [
-    hyprland
-    hyprpaper
-  ];
 
   cargoLock = {
     lockFile = ../Cargo.lock;
