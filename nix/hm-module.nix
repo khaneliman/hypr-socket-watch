@@ -11,7 +11,6 @@ let
   inherit (lib.modules) mkIf;
   inherit (lib.options) mkOption mkEnableOption;
   inherit (lib.meta) getExe;
-  inherit (inputs) hyprland;
 
   boolToString = x: if x then "true" else "false";
 
@@ -30,7 +29,7 @@ in
     hyprlandPackage = mkOption {
       description = "The hyprland package";
       type = package;
-      default = hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
+      default = pkgs.hyprland;
     };
 
     monitor = mkOption {
