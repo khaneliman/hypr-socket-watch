@@ -67,6 +67,7 @@ in
         ExecStart = "${getExe cfg.package}";
         Restart = "on-failure";
         Environment = [ "PATH=${lib.makeBinPath [ cfg.hyprlandPackage ]}" ];
+        ConditionEnvironment = "HYPRLAND_INSTANCE_SIGNATURE";
       };
     };
   };
