@@ -55,6 +55,7 @@ in
       Install.WantedBy = [ "graphical-session.target" ];
 
       Unit = {
+        ConditionEnvironment = "HYPRLAND_INSTANCE_SIGNATURE";
         Description = "Hyprland Socket Watch Service";
         BindsTo = [ "graphical-session.target" ];
         PartOf = [ "graphical-session.target" ];
@@ -66,7 +67,6 @@ in
         ExecStart = "${getExe cfg.package}";
         Restart = "on-failure";
         Environment = [ "PATH=${lib.makeBinPath [ cfg.hyprlandPackage ]}" ];
-        ConditionEnvironment = "HYPRLAND_INSTANCE_SIGNATURE";
       };
     };
   };
