@@ -20,7 +20,7 @@
           "aarch64-linux"
         ] (system: function (import nixpkgs { inherit system overlays; }));
 
-      version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
+      inherit ((fromTOML (builtins.readFile ./Cargo.toml)).package) version;
 
       mkDate =
         longDate:
@@ -52,7 +52,7 @@
         hypr-socket-watch = import ./nix/hm-module.nix self;
       };
 
-      overlays.default = final: prev: {
+      overlays.default = final: _prev: {
         hypr-socket-watch = final.callPackage ./nix/default.nix {
           version =
             version

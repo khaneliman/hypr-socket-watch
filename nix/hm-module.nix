@@ -1,7 +1,6 @@
 self:
 {
   config,
-  inputs,
   pkgs,
   lib,
   ...
